@@ -569,7 +569,21 @@ app.use((req, res, next) => {
 })
 
 // Apply captcha middleware to protect all routes except verification routes
-app.use(/^\/(?!verify|process-verify|favicon.ico|robots.txt).*$/, captchaMiddleware)
+// More explicit path matching
+app.use((req, res, next) => {
+  // Skip captcha for specific paths
+  if (
+    req.path === '/verify' || 
+    req.path === '/process-verify' ||
+    req.path === '/favicon.ico' ||
+    req.path === '/robots.txt'
+  ) {
+    return next();
+  }
+  
+  // Apply captcha middleware for all other paths
+  captchaMiddleware(req, res, next);
+});
 
 // Serve static files from the 'public' directory AFTER captcha verification
 app.use(express.static(path.join(__dirname, "view")))
