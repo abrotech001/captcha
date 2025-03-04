@@ -572,7 +572,7 @@ app.use((req, res, next) => {
 app.use(/^\/(?!verify|process-verify|favicon.ico|robots.txt).*$/, captchaMiddleware)
 
 // Serve static files from the 'public' directory AFTER captcha verification
-app.use(express.static(path.join(__dirname, "public")))
+app.use(express.static(path.join(__dirname, "view")))
 
 // Default route handler for the root URL
 app.get("/", (req, res) => {
