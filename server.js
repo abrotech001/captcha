@@ -568,15 +568,13 @@ app.use((req, res, next) => {
   next()
 })
 
-// Apply captcha middleware to protect all routes except verification routes
-// More explicit path matching
+// Apply captcha middleware to protect routes while fixing the favicon.ico issue
 app.use((req, res, next) => {
-  // Skip captcha for specific paths
+  // Skip captcha for specific paths and resource files
   if (
     req.path === '/verify' || 
     req.path === '/process-verify' ||
-    req.path === '/favicon.ico' ||
-    req.path === '/robots.txt'
+    req.path.match(/\.(ico|png|jpg|jpeg|gif|svg|css|js)$/) // Skip all resource files
   ) {
     return next();
   }
