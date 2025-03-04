@@ -1,13 +1,13 @@
 {
-  "name": "abrotech-enhanced-captcha",
+  "name": "abrotech-captcha",
   "version": "1.0.0",
-  "description": "Enhanced captcha system for Abrotech website",
+  "description": "Captcha system for Abrotech website",
   "private": true,
   "main": "server.js",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
     "start": "node server.js",
+    "build": "echo 'No build step required'",
+    "dev": "next dev",
     "lint": "next lint"
   },
   "dependencies": {
