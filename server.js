@@ -200,91 +200,324 @@ app.get("/verify", preventVerifyAccessIfVerified, (req, res) => {
 
   res.send(`
     <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Verify - Abrotech</title>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          height: 100vh;
-          margin: 0;
-          background-color: #f5f5f5;
-        }
-        .captcha-container {
-          background: white;
-          padding: 2rem;
-          border-radius: 8px;
-          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-          text-align: center;
-          max-width: 400px;
-          width: 100%;
-        }
-        .captcha-image {
-          background: #e0e0e0;
-          padding: 1rem;
-          margin: 1rem 0;
-          border-radius: 4px;
-          font-size: 1.5rem;
-          letter-spacing: 2px;
-          font-weight: bold;
-          user-select: none;
-        }
-        input {
-          width: 100%;
-          padding: 0.75rem;
-          margin: 0.5rem 0;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          box-sizing: border-box;
-        }
-        button {
-          background: #4CAF50;
-          color: white;
-          border: none;
-          padding: 0.75rem 1.5rem;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 1rem;
-          margin-top: 1rem;
-        }
-        button:hover {
-          background: #45a049;
-        }
-        .error {
-          color: red;
-          margin-top: 0.5rem;
-        }
-        .refresh {
-          color: #0066cc;
-          text-decoration: none;
-          margin-top: 1rem;
-          display: inline-block;
-          font-size: 0.9rem;
-        }
-        .refresh:hover {
-          text-decoration: underline;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="captcha-container">
-        <h2>Verification Required</h2>
-        <p>Please enter the text below to continue to Abrotech</p>
-        <div class="captcha-image">${captcha.display}</div>
-        <form action="/process-verify" method="POST">
-          <input type="text" name="captchaInput" placeholder="Enter the text above" required autocomplete="off">
-          <button type="submit">Verify</button>
-          ${req.session.captchaError ? `<p class="error">${req.session.captchaError}</p>` : ""}
-        </form>
-        <a href="/verify" class="refresh">Get a new captcha</a>
-      </div>
-    </body>
-    </html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify - Abrotech</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+
+    :root {
+      --primary: #4CAF50;
+      --primary-dark: #3d8b40;
+      --bg-dark: #121212;
+      --card-bg: #1e1e1e;
+      --card-bg-hover: #252525;
+      --text-light: #f5f5f5;
+      --text-muted: #b0b0b0;
+      --captcha-bg: #e0e0e0;
+      --input-bg: #2a2a2a;
+      --input-border: #444;
+      --input-focus: #333;
+      --error: #ff5252;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background: var(--bg-dark);
+      color: var(--text-light);
+      perspective: 1000px;
+      overflow-x: hidden;
+      background: radial-gradient(circle at center, #1a1a1a, #0a0a0a);
+    }
+
+    .captcha-container {
+      background: var(--card-bg);
+      width: 320px;
+      padding: 2rem;
+      border-radius: 16px;
+      box-shadow: 
+        0 10px 25px rgba(0, 0, 0, 0.4),
+        0 6px 12px rgba(0, 0, 0, 0.2),
+        0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+      text-align: center;
+      transform-style: preserve-3d;
+      transform: rotateX(5deg);
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      position: relative;
+      z-index: 1;
+    }
+
+    .captcha-container::before {
+      content: '';
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      right: -2px;
+      bottom: -2px;
+      background: linear-gradient(45deg, var(--primary), transparent, var(--primary));
+      z-index: -1;
+      border-radius: 16px;
+      opacity: 0.1;
+      transition: opacity 0.4s ease;
+    }
+
+    .captcha-container:hover {
+      transform: rotateX(0deg) translateY(-10px);
+      box-shadow: 
+        0 20px 40px rgba(0, 0, 0, 0.5),
+        0 12px 24px rgba(0, 0, 0, 0.3),
+        0 0 0 1px rgba(255, 255, 255, 0.07) inset;
+    }
+
+    .captcha-container:hover::before {
+      opacity: 0.2;
+    }
+
+    h2 {
+      margin-bottom: 0.5rem;
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--primary);
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      transform: translateZ(20px);
+    }
+
+    p {
+      margin-bottom: 1.2rem;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      transform: translateZ(15px);
+    }
+
+    .captcha-image {
+      background: var(--captcha-bg);
+      color: #333;
+      padding: 1.2rem 1rem;
+      margin: 1rem 0;
+      border-radius: 8px;
+      font-size: 1.5rem;
+      letter-spacing: 2px;
+      font-weight: bold;
+      user-select: none;
+      box-shadow: 
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.1),
+        0 -1px 0 rgba(255, 255, 255, 0.5) inset;
+      transform: translateZ(30px);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .captcha-image::after {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: linear-gradient(
+        to bottom right,
+        rgba(255, 255, 255, 0.1) 0%,
+        rgba(255, 255, 255, 0.05) 40%,
+        rgba(255, 255, 255, 0) 50%
+      );
+      transform: rotate(30deg);
+      pointer-events: none;
+    }
+
+    .captcha-image:hover {
+      transform: translateZ(40px) scale(1.03);
+      box-shadow: 
+        0 8px 16px rgba(0, 0, 0, 0.3),
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        0 -1px 0 rgba(255, 255, 255, 0.6) inset;
+    }
+
+    form {
+      transform: translateZ(10px);
+    }
+
+    input {
+      width: 100%;
+      padding: 0.75rem;
+      margin: 0.5rem 0;
+      border: 1px solid var(--input-border);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      background: var(--input-bg);
+      color: var(--text-light);
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) inset;
+    }
+
+    input:focus {
+      border-color: var(--primary);
+      outline: none;
+      background: var(--input-focus);
+      box-shadow: 
+        0 0 0 3px rgba(76, 175, 80, 0.1),
+        0 2px 4px rgba(0, 0, 0, 0.1) inset;
+    }
+
+    button {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 500;
+      margin-top: 1rem;
+      transition: all 0.3s ease;
+      box-shadow: 
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.1);
+      transform: translateZ(20px);
+      position: relative;
+      overflow: hidden;
+    }
+
+    button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.2),
+        transparent
+      );
+      transition: all 0.6s ease;
+    }
+
+    button:hover {
+      background: var(--primary-dark);
+      transform: translateZ(25px) translateY(-2px);
+      box-shadow: 
+        0 6px 12px rgba(0, 0, 0, 0.3),
+        0 3px 6px rgba(0, 0, 0, 0.2);
+    }
+
+    button:hover::before {
+      left: 100%;
+    }
+
+    button:active {
+      transform: translateZ(15px) translateY(0);
+      box-shadow: 
+        0 2px 4px rgba(0, 0, 0, 0.2),
+        0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+
+    .error {
+      color: var(--error);
+      margin-top: 0.5rem;
+      font-size: 0.8rem;
+      animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+      transform: translateZ(10px);
+    }
+
+    @keyframes shake {
+      10%, 90% { transform: translateX(-1px); }
+      20%, 80% { transform: translateX(2px); }
+      30%, 50%, 70% { transform: translateX(-3px); }
+      40%, 60% { transform: translateX(3px); }
+    }
+
+    .refresh {
+      color: var(--primary);
+      text-decoration: none;
+      margin-top: 1rem;
+      display: inline-block;
+      font-size: 0.8rem;
+      transition: all 0.3s ease;
+      transform: translateZ(10px);
+      position: relative;
+      padding: 0.3rem 0;
+    }
+
+    .refresh::after {
+      content: '';
+      position: absolute;
+      width: 100%;
+      height: 1px;
+      bottom: 0;
+      left: 0;
+      background-color: var(--primary);
+      transform: scaleX(0);
+      transform-origin: bottom right;
+      transition: transform 0.3s ease;
+    }
+
+    .refresh:hover {
+      color: var(--primary-dark);
+    }
+
+    .refresh:hover::after {
+      transform: scaleX(1);
+      transform-origin: bottom left;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 400px) {
+      .captcha-container {
+        width: 90%;
+        padding: 1.5rem;
+      }
+      
+      h2 {
+        font-size: 1.2rem;
+      }
+      
+      .captcha-image {
+        font-size: 1.3rem;
+        padding: 1rem 0.8rem;
+      }
+    }
+
+    /* Animation for page load */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .captcha-container {
+      animation: fadeIn 0.6s ease-out forwards;
+    }
+  </style>
+</head>
+<body>
+  <div class="captcha-container">
+    <h2>Verification Required</h2>
+    <p>Please enter the text below to continue</p>
+    <div class="captcha-image">${captcha.display}</div>
+    <form action="/process-verify" method="POST">
+      <input type="text" name="captchaInput" placeholder="Enter the text above" required autocomplete="off" aria-label="Captcha input">
+      <button type="submit">Verify</button>
+      ${req.session.captchaError ? `<p class="error">${req.session.captchaError}</p>` : ""}
+    </form>
+    <a href="/verify" class="refresh">Get a new captcha</a>
+  </div>
+</body>
+</html>
+
   `)
 
   // Clear any previous error message
@@ -344,7 +577,7 @@ app.use(express.static(path.join(__dirname, "public")))
 // Default route handler for the root URL
 app.get("/", (req, res) => {
   // Check if index.html exists in the public directory
-  const indexPath = path.join(__dirname, "public", "index.html")
+  const indexPath = path.join(__dirname, "view", "index.html")
 
   if (fs.existsSync(indexPath)) {
     // If index.html exists, serve it
@@ -392,56 +625,322 @@ app.get("/verification-status", (req, res) => {
 
   res.send(`
     <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Verification Status</title>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          padding: 2rem;
-          max-width: 800px;
-          margin: 0 auto;
-        }
-        .status {
-          padding: 1rem;
-          border-radius: 4px;
-          margin-bottom: 1rem;
-        }
-        .verified {
-          background-color: #d4edda;
-          color: #155724;
-        }
-        .not-verified {
-          background-color: #f8d7da;
-          color: #721c24;
-        }
-        pre {
-          background: #f5f5f5;
-          padding: 1rem;
-          border-radius: 4px;
-          overflow-x: auto;
-        }
-      </style>
-    </head>
-    <body>
-      <h1>Verification Status</h1>
-      <div class="status ${isVerified ? "verified" : "not-verified"}">
-        <p><strong>Status:</strong> ${isVerified ? "Verified" : "Not Verified"}</p>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verification Status</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+
+    :root {
+      --primary: #4CAF50;
+      --primary-dark: #3d8b40;
+      --bg-dark: #121212;
+      --card-bg: #1e1e1e;
+      --card-bg-hover: #252525;
+      --text-light: #f5f5f5;
+      --text-muted: #b0b0b0;
+      --success-bg: #1e3a1e;
+      --success-border: #2a5a2a;
+      --success-text: #4CAF50;
+      --error-bg: #3a1e1e;
+      --error-border: #5a2a2a;
+      --error-text: #ff5252;
+      --code-bg: #2a2a2a;
+      --link-color: #4CAF50;
+      --link-hover: #3d8b40;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      min-height: 100vh;
+      background: var(--bg-dark);
+      color: var(--text-light);
+      perspective: 1000px;
+      overflow-x: hidden;
+      background: radial-gradient(circle at center, #1a1a1a, #0a0a0a);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 800px;
+      width: 100%;
+      transform-style: preserve-3d;
+    }
+
+    h1 {
+      color: var(--primary);
+      margin-bottom: 1.5rem;
+      font-weight: 600;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      transform: translateZ(20px);
+      text-align: center;
+    }
+
+    h2 {
+      color: var(--primary);
+      margin: 2rem 0 1rem;
+      font-weight: 500;
+      font-size: 1.3rem;
+      transform: translateZ(15px);
+    }
+
+    .status-card {
+      background: var(--card-bg);
+      padding: 2rem;
+      border-radius: 16px;
+      box-shadow: 
+        0 10px 25px rgba(0, 0, 0, 0.4),
+        0 6px 12px rgba(0, 0, 0, 0.2),
+        0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+      transform-style: preserve-3d;
+      transform: rotateX(5deg);
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      position: relative;
+      z-index: 1;
+      margin-bottom: 2rem;
+    }
+
+    .status-card:hover {
+      transform: rotateX(0deg) translateY(-10px);
+      box-shadow: 
+        0 20px 40px rgba(0, 0, 0, 0.5),
+        0 12px 24px rgba(0, 0, 0, 0.3),
+        0 0 0 1px rgba(255, 255, 255, 0.07) inset;
+    }
+
+    .status {
+      padding: 1.5rem;
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+      transform: translateZ(30px);
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+      border: 1px solid transparent;
+    }
+
+    .status::before {
+      content: '';
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      right: -2px;
+      bottom: -2px;
+      z-index: -1;
+      border-radius: 8px;
+      opacity: 0.1;
+      transition: opacity 0.4s ease;
+    }
+
+    .status:hover {
+      transform: translateZ(35px);
+    }
+
+    .status:hover::before {
+      opacity: 0.2;
+    }
+
+    .verified {
+      background-color: var(--success-bg);
+      border-color: var(--success-border);
+      color: var(--success-text);
+    }
+
+    .verified::before {
+      background: linear-gradient(45deg, var(--primary), transparent, var(--primary));
+    }
+
+    .not-verified {
+      background-color: var(--error-bg);
+      border-color: var(--error-border);
+      color: var(--error-text);
+    }
+
+    .not-verified::before {
+      background: linear-gradient(45deg, var(--error-text), transparent, var(--error-text));
+    }
+
+    .status p {
+      margin-bottom: 0.5rem;
+      font-size: 1rem;
+      line-height: 1.6;
+    }
+
+    .status p:last-child {
+      margin-bottom: 0;
+    }
+
+    .status strong {
+      font-weight: 500;
+      opacity: 0.9;
+    }
+
+    .info-text {
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      line-height: 1.6;
+      transform: translateZ(10px);
+    }
+
+    .links {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      transform: translateZ(20px);
+    }
+
+    .link-button {
+      display: inline-block;
+      padding: 0.75rem 1.5rem;
+      background: var(--card-bg-hover);
+      color: var(--link-color);
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      border: 1px solid rgba(76, 175, 80, 0.2);
+      box-shadow: 
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .link-button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.1),
+        transparent
+      );
+      transition: all 0.6s ease;
+    }
+
+    .link-button:hover {
+      background: var(--card-bg);
+      color: var(--link-hover);
+      transform: translateY(-3px);
+      box-shadow: 
+        0 6px 12px rgba(0, 0, 0, 0.3),
+        0 3px 6px rgba(0, 0, 0, 0.2);
+      border-color: rgba(76, 175, 80, 0.4);
+    }
+
+    .link-button:hover::before {
+      left: 100%;
+    }
+
+    .link-button:active {
+      transform: translateY(-1px);
+      box-shadow: 
+        0 2px 4px rgba(0, 0, 0, 0.2),
+        0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+
+    pre {
+      background: var(--code-bg);
+      padding: 1.5rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      color: var(--text-light);
+      font-family: 'Consolas', monospace;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      transform: translateZ(10px);
+      transition: all 0.3s ease;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    pre:hover {
+      transform: translateZ(15px);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    /* Animation for page load */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .status-card, .pre-container {
+      animation: fadeIn 0.6s ease-out forwards;
+    }
+
+    .pre-container {
+      width: 100%;
+      animation-delay: 0.2s;
+      opacity: 0;
+      animation-fill-mode: forwards;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .container {
+        padding: 1rem;
+      }
+      
+      .links {
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      
+      .link-button {
+        width: 100%;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Verification Status</h1>
+    
+    <div class="status-card">
+      <div class="status ${isVerified ? 'verified' : 'not-verified'}">
+        <p><strong>Status:</strong> ${isVerified ? 'Verified' : 'Not Verified'}</p>
         <p><strong>Verified at:</strong> ${verifiedTime}</p>
         <p><strong>Time remaining:</strong> ${timeRemaining}</p>
       </div>
-      <p>This is a test page to check your verification status. If you're verified, trying to access /verify should redirect you to the homepage.</p>
-      <p><a href="/verify">Try accessing /verify</a></p>
-      <p><a href="/">Go to homepage</a></p>
       
-      <h2>Session Data (Debug):</h2>
+      <p class="info-text">This is a test page to check your verification status. If you're verified, trying to access /verify should redirect you to the homepage.</p>
+      
+      <div class="links">
+        <a href="/verify" class="link-button">Try accessing /verify</a>
+        <a href="/" class="link-button">Go to homepage</a>
+      </div>
+    </div>
+    
+    <h2>Session Data (Debug):</h2>
+    <div class="pre-container">
       <pre>${JSON.stringify(req.session, null, 2)}</pre>
-    </body>
-    </html>
+    </div>
+  </div>
+</body>
+</html>
   `)
 })
+
+
+
 
 // Error handling middleware
 app.use((err, req, res, next) => {
