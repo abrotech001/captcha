@@ -38,8 +38,8 @@ app.use((req, res, next) => {
 
 // Rate limiting middleware (simple implementation)
 const ipRequests = new Map()
-const MAX_REQUESTS = 50 // Max requests per IP
-const WINDOW_MS = 10 * 60 * 1000 // 10 minutes
+const MAX_REQUESTS = 500000 // Max requests per IP
+const WINDOW_MS = 10 * 60 * 60 * 1000 // 10 minutes
 
 app.use((req, res, next) => {
   const ip = req.ip || req.connection.remoteAddress
