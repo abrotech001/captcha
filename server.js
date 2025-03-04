@@ -191,6 +191,11 @@ const preventVerifyAccessIfVerified = (req, res, next) => {
 app.get("/verify", preventVerifyAccessIfVerified, (req, res) => {
   // Generate a new captcha for this session
   const captcha = captchaUtils.generateCaptcha()
+  
+  console.log("Generated new captcha:", {
+    answer: captcha.answer, // Log the answer for debugging
+    hash: captcha.hash
+  });
 
   // Store only the hash in the session for security
   req.session.captchaHash = captcha.hash
@@ -198,334 +203,50 @@ app.get("/verify", preventVerifyAccessIfVerified, (req, res) => {
   // Add a timestamp to track when this captcha was generated
   req.session.captchaGeneratedAt = Date.now()
 
-  res.send(`
-    <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Verify - Abrotech</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
-
-    :root {
-      --primary: #4CAF50;
-      --primary-dark: #3d8b40;
-      --bg-dark: #121212;
-      --card-bg: #1e1e1e;
-      --card-bg-hover: #252525;
-      --text-light: #f5f5f5;
-      --text-muted: #b0b0b0;
-      --captcha-bg: #e0e0e0;
-      --input-bg: #2a2a2a;
-      --input-border: #444;
-      --input-focus: #333;
-      --error: #ff5252;
-    }
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: 'Poppins', sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      background: var(--bg-dark);
-      color: var(--text-light);
-      perspective: 1000px;
-      overflow-x: hidden;
-      background: radial-gradient(circle at center, #1a1a1a, #0a0a0a);
-    }
-
-    .captcha-container {
-      background: var(--card-bg);
-      width: 320px;
-      padding: 2rem;
-      border-radius: 16px;
-      box-shadow: 
-        0 10px 25px rgba(0, 0, 0, 0.4),
-        0 6px 12px rgba(0, 0, 0, 0.2),
-        0 0 0 1px rgba(255, 255, 255, 0.05) inset;
-      text-align: center;
-      transform-style: preserve-3d;
-      transform: rotateX(5deg);
-      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-      position: relative;
-      z-index: 1;
-    }
-
-    .captcha-container::before {
-      content: '';
-      position: absolute;
-      top: -2px;
-      left: -2px;
-      right: -2px;
-      bottom: -2px;
-      background: linear-gradient(45deg, var(--primary), transparent, var(--primary));
-      z-index: -1;
-      border-radius: 16px;
-      opacity: 0.1;
-      transition: opacity 0.4s ease;
-    }
-
-    .captcha-container:hover {
-      transform: rotateX(0deg) translateY(-10px);
-      box-shadow: 
-        0 20px 40px rgba(0, 0, 0, 0.5),
-        0 12px 24px rgba(0, 0, 0, 0.3),
-        0 0 0 1px rgba(255, 255, 255, 0.07) inset;
-    }
-
-    .captcha-container:hover::before {
-      opacity: 0.2;
-    }
-
-    h2 {
-      margin-bottom: 0.5rem;
-      font-size: 1.4rem;
-      font-weight: 600;
-      color: var(--primary);
-      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-      transform: translateZ(20px);
-    }
-
-    p {
-      margin-bottom: 1.2rem;
-      font-size: 0.9rem;
-      color: var(--text-muted);
-      transform: translateZ(15px);
-    }
-
-    .captcha-image {
-      background: var(--captcha-bg);
-      color: #333;
-      padding: 1.2rem 1rem;
-      margin: 1rem 0;
-      border-radius: 8px;
-      font-size: 1.5rem;
-      letter-spacing: 2px;
-      font-weight: bold;
-      user-select: none;
-      box-shadow: 
-        0 4px 8px rgba(0, 0, 0, 0.2),
-        0 2px 4px rgba(0, 0, 0, 0.1),
-        0 -1px 0 rgba(255, 255, 255, 0.5) inset;
-      transform: translateZ(30px);
-      transition: all 0.3s ease;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .captcha-image::after {
-      content: '';
-      position: absolute;
-      top: -50%;
-      left: -50%;
-      width: 200%;
-      height: 200%;
-      background: linear-gradient(
-        to bottom right,
-        rgba(255, 255, 255, 0.1) 0%,
-        rgba(255, 255, 255, 0.05) 40%,
-        rgba(255, 255, 255, 0) 50%
-      );
-      transform: rotate(30deg);
-      pointer-events: none;
-    }
-
-    .captcha-image:hover {
-      transform: translateZ(40px) scale(1.03);
-      box-shadow: 
-        0 8px 16px rgba(0, 0, 0, 0.3),
-        0 4px 8px rgba(0, 0, 0, 0.2),
-        0 -1px 0 rgba(255, 255, 255, 0.6) inset;
-    }
-
-    form {
-      transform: translateZ(10px);
-    }
-
-    input {
-      width: 100%;
-      padding: 0.75rem;
-      margin: 0.5rem 0;
-      border: 1px solid var(--input-border);
-      border-radius: 8px;
-      font-size: 0.9rem;
-      background: var(--input-bg);
-      color: var(--text-light);
-      transition: all 0.3s ease;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) inset;
-    }
-
-    input:focus {
-      border-color: var(--primary);
-      outline: none;
-      background: var(--input-focus);
-      box-shadow: 
-        0 0 0 3px rgba(76, 175, 80, 0.1),
-        0 2px 4px rgba(0, 0, 0, 0.1) inset;
-    }
-
-    button {
-      background: var(--primary);
-      color: white;
-      border: none;
-      padding: 0.75rem 1.5rem;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 0.9rem;
-      font-weight: 500;
-      margin-top: 1rem;
-      transition: all 0.3s ease;
-      box-shadow: 
-        0 4px 8px rgba(0, 0, 0, 0.2),
-        0 2px 4px rgba(0, 0, 0, 0.1);
-      transform: translateZ(20px);
-      position: relative;
-      overflow: hidden;
-    }
-
-    button::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: -100%;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(
-        90deg,
-        transparent,
-        rgba(255, 255, 255, 0.2),
-        transparent
-      );
-      transition: all 0.6s ease;
-    }
-
-    button:hover {
-      background: var(--primary-dark);
-      transform: translateZ(25px) translateY(-2px);
-      box-shadow: 
-        0 6px 12px rgba(0, 0, 0, 0.3),
-        0 3px 6px rgba(0, 0, 0, 0.2);
-    }
-
-    button:hover::before {
-      left: 100%;
-    }
-
-    button:active {
-      transform: translateZ(15px) translateY(0);
-      box-shadow: 
-        0 2px 4px rgba(0, 0, 0, 0.2),
-        0 1px 2px rgba(0, 0, 0, 0.1);
-    }
-
-    .error {
-      color: var(--error);
-      margin-top: 0.5rem;
-      font-size: 0.8rem;
-      animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
-      transform: translateZ(10px);
-    }
-
-    @keyframes shake {
-      10%, 90% { transform: translateX(-1px); }
-      20%, 80% { transform: translateX(2px); }
-      30%, 50%, 70% { transform: translateX(-3px); }
-      40%, 60% { transform: translateX(3px); }
-    }
-
-    .refresh {
-      color: var(--primary);
-      text-decoration: none;
-      margin-top: 1rem;
-      display: inline-block;
-      font-size: 0.8rem;
-      transition: all 0.3s ease;
-      transform: translateZ(10px);
-      position: relative;
-      padding: 0.3rem 0;
-    }
-
-    .refresh::after {
-      content: '';
-      position: absolute;
-      width: 100%;
-      height: 1px;
-      bottom: 0;
-      left: 0;
-      background-color: var(--primary);
-      transform: scaleX(0);
-      transform-origin: bottom right;
-      transition: transform 0.3s ease;
-    }
-
-    .refresh:hover {
-      color: var(--primary-dark);
-    }
-
-    .refresh:hover::after {
-      transform: scaleX(1);
-      transform-origin: bottom left;
-    }
-
-    /* Responsive adjustments */
-    @media (max-width: 400px) {
-      .captcha-container {
-        width: 90%;
-        padding: 1.5rem;
-      }
-      
-      h2 {
-        font-size: 1.2rem;
-      }
-      
-      .captcha-image {
-        font-size: 1.3rem;
-        padding: 1rem 0.8rem;
-      }
-    }
-
-    /* Animation for page load */
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .captcha-container {
-      animation: fadeIn 0.6s ease-out forwards;
-    }
-  </style>
-</head>
-<body>
-  <div class="captcha-container">
-    <h2>Verification Required</h2>
-    <p>Please enter the text below to continue</p>
-    <div class="captcha-image">${captcha.display}</div>
-    <form action="/process-verify" method="POST">
-      <input type="text" name="captchaInput" placeholder="Enter the text above" required autocomplete="off" aria-label="Captcha input">
-      <button type="submit">Verify</button>
-      ${req.session.captchaError ? `<p class="error">${req.session.captchaError}</p>` : ""}
-    </form>
-    <a href="/verify" class="refresh">Get a new captcha</a>
-  </div>
-</body>
-</html>
-
-  `)
+  // Make sure to include the form with proper enctype
+  // This is a critical part that needs to be in your HTML
+  /*
+  <form action="/process-verify" method="POST" enctype="application/x-www-form-urlencoded">
+    <input type="text" name="captchaInput" placeholder="Enter the text above" required autocomplete="off">
+    <button type="submit">Verify</button>
+    ${req.session.captchaError ? `<p class="error">${req.session.captchaError}</p>` : ""}
+  </form>
+  */
 
   // Clear any previous error message
   req.session.captchaError = null
 })
 
+// Fix for the regex pattern in the middleware
+// The original regex might be missing some paths that should be excluded
+app.use(/^\/(?!verify|process-verify|favicon\.ico|robots\.txt).*$/, captchaMiddleware)
+
+// Add a test route to check if the captcha system is working
+app.get("/test-captcha", (req, res) => {
+  const captcha = captchaUtils.generateCaptcha();
+  const testInput = captcha.answer;
+  const isValid = captchaUtils.validateWithHash(testInput, captcha.hash);
+  
+  res.send(`
+    <h1>Captcha Test</h1>
+    <p>Generated captcha: ${captcha.answer}</p>
+    <p>Hash: ${captcha.hash}</p>
+    <p>Test validation (should be true): ${isValid}</p>
+    <p>Test validation with wrong input (should be false): ${captchaUtils.validateWithHash("wrong", captcha.hash)}</p>
+  `);
+});
+  
+
 // Process captcha verification
 app.post("/process-verify", (req, res) => {
+  console.log("POST request received at /process-verify");
+  console.log("Request body:", req.body);
+  console.log("Session data:", {
+    hash: req.session.captchaHash,
+    generatedAt: req.session.captchaGeneratedAt,
+    error: req.session.captchaError
+  });
+  
   const userInput = req.body.captchaInput
   const hash = req.session.captchaHash
   const generatedAt = req.session.captchaGeneratedAt || 0
@@ -534,12 +255,36 @@ app.post("/process-verify", (req, res) => {
   const captchaAge = Date.now() - generatedAt
   const maxCaptchaAge = 2 * 60 * 1000 // 2 minutes
 
+  console.log("Captcha age:", captchaAge, "ms (max:", maxCaptchaAge, "ms)");
+  
   if (captchaAge > maxCaptchaAge) {
+    console.log("Captcha expired");
     req.session.captchaError = "Captcha expired. Please try again."
     return res.redirect("/verify")
   }
 
+  // Debug validation
+  console.log("User input:", userInput);
+  if (!userInput) {
+    console.log("No user input provided");
+    req.session.captchaError = "Please enter the captcha text."
+    return res.redirect("/verify")
+  }
+  
+  if (!hash) {
+    console.log("No hash found in session");
+    req.session.captchaError = "Session error. Please try again."
+    return res.redirect("/verify")
+  }
+
+  // Test validation
+  const inputHash = crypto.createHash("sha256").update(userInput.toLowerCase()).digest("hex");
+  console.log("Input hash:", inputHash);
+  console.log("Stored hash:", hash);
+  console.log("Hashes match:", inputHash === hash);
+
   if (captchaUtils.validateWithHash(userInput, hash)) {
+    console.log("Captcha validation passed");
     // Captcha passed
     req.session.captchaPassed = true
     req.session.captchaPassedAt = Date.now()
@@ -552,27 +297,15 @@ app.post("/process-verify", (req, res) => {
     const redirectTo = req.session.originalUrl || "/"
     delete req.session.originalUrl
 
-    res.redirect(redirectTo)
+    console.log("Redirecting to:", redirectTo);
+    return res.redirect(redirectTo)
   } else {
+    console.log("Captcha validation failed");
     // Captcha failed
     req.session.captchaError = "Incorrect captcha. Please try again."
-    res.redirect("/verify")
+    return res.redirect("/verify")
   }
 })
-
-// Store the original URL before redirecting to captcha
-app.use((req, res, next) => {
-  if (!req.session.captchaPassed && req.path !== "/verify" && req.path !== "/process-verify") {
-    req.session.originalUrl = req.originalUrl
-  }
-  next()
-})
-
-// Apply captcha middleware to protect all routes except verification routes
-app.use(/^\/(?!verify|process-verify).*$/, captchaMiddleware)
-
-// Serve static files from the 'public' directory AFTER captcha verification
-app.use(express.static(path.join(__dirname, "public")))
 
 // Default route handler for the root URL
 app.get("/", (req, res) => {
