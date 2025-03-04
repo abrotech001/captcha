@@ -1,4 +1,4 @@
-// Enhanced captcha server implementation (CommonJS)
+// Enhanced captcha server implementation using CommonJS format
 const express = require("express")
 const session = require("express-session")
 const crypto = require("crypto")
@@ -80,93 +80,84 @@ setInterval(
   60 * 60 * 1000,
 )
 
-// Create captcha-utils.js file if it doesn't exist
-const captchaUtilsPath = path.join(__dirname, "captcha-utils.js")
-if (!fs.existsSync(captchaUtilsPath)) {
-  const captchaUtilsContent = `
-// Enhanced captcha utilities (CommonJS)
-const crypto = require('crypto');
+// Define captcha utilities directly in the server.js file to avoid module issues
+// This is the simplest fix for the validateWithHash error
+const captchaUtils = {
+  /**
+   * Generates a captcha challenge
+   * @returns {Object} Object containing the captcha display text and answer
+   */
+  generateCaptcha: () => {
+    // Define character sets for captcha (excluding similar looking characters)
+    const letters = "abcdefghjkmnpqrstuvwxyz"
+    const numbers = "23456789"
+    const allChars = letters + letters.toUpperCase() + numbers
 
-/**
- * Generates a captcha challenge
- * @returns {Object} Object containing the captcha display text and answer
- */
-function generateCaptcha() {
-  // Define character sets for captcha (excluding similar looking characters)
-  const letters = 'abcdefghjkmnpqrstuvwxyz';
-  const numbers = '23456789';
-  const allChars = letters + letters.toUpperCase() + numbers;
-  
-  // Generate a random captcha of 5-7 characters
-  const length = Math.floor(Math.random() * 3) + 5; // 5-7 characters
-  let captchaText = '';
-  
-  for (let i = 0; i < length; i++) {
-    const randomIndex = Math.floor(Math.random() * allChars.length);
-    captchaText += allChars[randomIndex];
-  }
-  
-  // Apply some visual distortion
-  const displayText = captchaText.split('').map(char => {
-    // Randomly apply some styling to each character
-    const styles = [
-      \`<span style="transform: rotate(\${Math.random() * 20 - 10}deg); display: inline-block;">\${char}</span>\`,
-      \`<span style="font-size: \${Math.random() * 0.5 + 0.8}em;">\${char}</span>\`,
-      \`<span style="margin-left: \${Math.random() * 5}px;">\${char}</span>\`,
-      \`<span style="color: rgb(\${Math.floor(Math.random() * 100)}, \${Math.floor(Math.random() * 100)}, \${Math.floor(Math.random() * 100)});">\${char}</span>\`
-    ];
-    return styles[Math.floor(Math.random() * styles.length)];
-  }).join('');
-  
-  // Generate a hash of the answer for additional security
-  const hash = crypto.createHash('sha256').update(captchaText.toLowerCase()).digest('hex');
-  
-  return {
-    display: displayText,
-    answer: captchaText,
-    hash: hash
-  };
+    // Generate a random captcha of 5-7 characters
+    const length = Math.floor(Math.random() * 3) + 5 // 5-7 characters
+    let captchaText = ""
+
+    for (let i = 0; i < length; i++) {
+      const randomIndex = Math.floor(Math.random() * allChars.length)
+      captchaText += allChars[randomIndex]
+    }
+
+    // Apply some visual distortion
+    const displayText = captchaText
+      .split("")
+      .map((char) => {
+        // Randomly apply some styling to each character
+        const styles = [
+          `<span style="transform: rotate(${Math.random() * 20 - 10}deg); display: inline-block;">${char}</span>`,
+          `<span style="font-size: ${Math.random() * 0.5 + 0.8}em;">${char}</span>`,
+          `<span style="margin-left: ${Math.random() * 5}px;">${char}</span>`,
+          `<span style="color: rgb(${Math.floor(Math.random() * 100)}, ${Math.floor(Math.random() * 100)}, ${Math.floor(Math.random() * 100)});">${char}</span>`,
+        ]
+        return styles[Math.floor(Math.random() * styles.length)]
+      })
+      .join("")
+
+    // Generate a hash of the answer for additional security
+    const hash = crypto.createHash("sha256").update(captchaText.toLowerCase()).digest("hex")
+
+    return {
+      display: displayText,
+      answer: captchaText,
+      hash: hash,
+    }
+  },
+
+  /**
+   * Validates user input against the captcha answer
+   * @param {string} userInput - The user's input
+   * @param {string} answer - The correct captcha answer
+   * @param {Object} options - Validation options
+   * @param {boolean} options.caseSensitive - Whether validation should be case sensitive
+   * @returns {boolean} Whether the input is valid
+   */
+  validate: (userInput, answer, options = { caseSensitive: true }) => {
+    if (!userInput || !answer) return false
+
+    if (options.caseSensitive) {
+      return userInput === answer
+    } else {
+      return userInput.toLowerCase() === answer.toLowerCase()
+    }
+  },
+
+  /**
+   * Validates user input against a hash of the answer
+   * @param {string} userInput - The user's input
+   * @param {string} hash - The hash of the correct answer
+   * @returns {boolean} Whether the input is valid
+   */
+  validateWithHash: (userInput, hash) => {
+    if (!userInput || !hash) return false
+
+    const inputHash = crypto.createHash("sha256").update(userInput.toLowerCase()).digest("hex")
+    return inputHash === hash
+  },
 }
-
-/**
- * Validates user input against the captcha answer
- * @param {string} userInput - The user's input
- * @param {string} answer - The correct captcha answer
- * @param {Object} options - Validation options
- * @param {boolean} options.caseSensitive - Whether validation should be case sensitive
- * @returns {boolean} Whether the input is valid
- */
-function validate(userInput, answer, options = { caseSensitive: true }) {
-  if (!userInput || !answer) return false;
-  
-  if (options.caseSensitive) {
-    return userInput === answer;
-  } else {
-    return userInput.toLowerCase() === answer.toLowerCase();
-  }
-}
-
-/**
- * Validates user input against a hash of the answer
- * @param {string} userInput - The user's input
- * @param {string} hash - The hash of the correct answer
- * @returns {boolean} Whether the input is valid
- */
-function validateWithHash(userInput, hash) {
-  if (!userInput || !hash) return false;
-  
-  const inputHash = crypto.createHash('sha256').update(userInput.toLowerCase()).digest('hex');
-  return inputHash === hash;
-}
-
-module.exports = { generateCaptcha, validate, validateWithHash };
-  `
-  fs.writeFileSync(captchaUtilsPath, captchaUtilsContent)
-  console.log("Created enhanced captcha-utils.js")
-}
-
-// Import captcha utilities
-const { generateCaptcha, validateWithHash } = require("./captcha-utils")
 
 // Middleware to check if user has passed captcha
 const captchaMiddleware = (req, res, next) => {
@@ -196,7 +187,7 @@ const captchaMiddleware = (req, res, next) => {
 // Captcha page route
 app.get("/captcha", (req, res) => {
   // Generate a new captcha for this session
-  const captcha = generateCaptcha()
+  const captcha = captchaUtils.generateCaptcha()
 
   // Store only the hash in the session for security
   req.session.captchaHash = captcha.hash
@@ -312,7 +303,7 @@ app.post("/verify-captcha", (req, res) => {
     return res.redirect("/captcha")
   }
 
-  if (validateWithHash(userInput, hash)) {
+  if (captchaUtils.validateWithHash(userInput, hash)) {
     // Captcha passed
     req.session.captchaPassed = true
     req.session.captchaPassedAt = Date.now()
