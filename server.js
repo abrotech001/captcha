@@ -1,4 +1,4 @@
-// Enhanced captcha server implementation using CommonJS format
+// Enhanced captcha server implementation for main domain integration
 const express = require("express")
 const session = require("express-session")
 const crypto = require("crypto")
@@ -25,7 +25,6 @@ app.use(
 )
 
 // Middleware and body parser setup
-app.use(express.static(path.join(__dirname, "public")))
 app.use(express.urlencoded({ extended: false }))
 
 // Security headers middleware
@@ -80,8 +79,7 @@ setInterval(
   60 * 60 * 1000,
 )
 
-// Define captcha utilities directly in the server.js file to avoid module issues
-// This is the simplest fix for the validateWithHash error
+// Define captcha utilities directly in the server.js file
 const captchaUtils = {
   /**
    * Generates a captcha challenge
@@ -128,24 +126,6 @@ const captchaUtils = {
   },
 
   /**
-   * Validates user input against the captcha answer
-   * @param {string} userInput - The user's input
-   * @param {string} answer - The correct captcha answer
-   * @param {Object} options - Validation options
-   * @param {boolean} options.caseSensitive - Whether validation should be case sensitive
-   * @returns {boolean} Whether the input is valid
-   */
-  validate: (userInput, answer, options = { caseSensitive: true }) => {
-    if (!userInput || !answer) return false
-
-    if (options.caseSensitive) {
-      return userInput === answer
-    } else {
-      return userInput.toLowerCase() === answer.toLowerCase()
-    }
-  },
-
-  /**
    * Validates user input against a hash of the answer
    * @param {string} userInput - The user's input
    * @param {string} hash - The hash of the correct answer
@@ -180,12 +160,35 @@ const captchaMiddleware = (req, res, next) => {
     delete req.session.captchaPassedAt
   }
 
-  // Redirect to captcha page
-  res.redirect("/captcha")
+  // Redirect to captcha verification
+  res.redirect("/verify")
 }
 
-// Captcha page route
-app.get("/captcha", (req, res) => {
+// Prevent access to /verify if already verified
+const preventVerifyAccessIfVerified = (req, res, next) => {
+  // Check if session exists
+  if (!req.session) {
+    return next()
+  }
+
+  // Check if user has passed captcha and it's still valid
+  if (req.session.captchaPassed && req.session.captchaPassedAt) {
+    const captchaAge = Date.now() - req.session.captchaPassedAt
+    const maxCaptchaAge = 60 * 60 * 1000 // 1 hour
+
+    if (captchaAge < maxCaptchaAge) {
+      console.log("User already verified, redirecting from /verify to homepage")
+      // Already verified, redirect to main page
+      return res.redirect("/")
+    }
+  }
+
+  // Not verified or verification expired, proceed to captcha page
+  next()
+}
+
+// Captcha verification page
+app.get("/verify", preventVerifyAccessIfVerified, (req, res) => {
   // Generate a new captcha for this session
   const captcha = captchaUtils.generateCaptcha()
 
@@ -273,12 +276,12 @@ app.get("/captcha", (req, res) => {
         <h2>Verification Required</h2>
         <p>Please enter the text below to continue to Abrotech</p>
         <div class="captcha-image">${captcha.display}</div>
-        <form action="/verify-captcha" method="POST">
+        <form action="/process-verify" method="POST">
           <input type="text" name="captchaInput" placeholder="Enter the text above" required autocomplete="off">
           <button type="submit">Verify</button>
           ${req.session.captchaError ? `<p class="error">${req.session.captchaError}</p>` : ""}
         </form>
-        <a href="/captcha" class="refresh">Get a new captcha</a>
+        <a href="/verify" class="refresh">Get a new captcha</a>
       </div>
     </body>
     </html>
@@ -288,8 +291,8 @@ app.get("/captcha", (req, res) => {
   req.session.captchaError = null
 })
 
-// Verify captcha submission
-app.post("/verify-captcha", (req, res) => {
+// Process captcha verification
+app.post("/process-verify", (req, res) => {
   const userInput = req.body.captchaInput
   const hash = req.session.captchaHash
   const generatedAt = req.session.captchaGeneratedAt || 0
@@ -300,7 +303,7 @@ app.post("/verify-captcha", (req, res) => {
 
   if (captchaAge > maxCaptchaAge) {
     req.session.captchaError = "Captcha expired. Please try again."
-    return res.redirect("/captcha")
+    return res.redirect("/verify")
   }
 
   if (captchaUtils.validateWithHash(userInput, hash)) {
@@ -312,26 +315,88 @@ app.post("/verify-captcha", (req, res) => {
     delete req.session.captchaHash
     delete req.session.captchaGeneratedAt
 
-    res.redirect("/") // Redirect to main page
+    // Store the original URL if it exists, otherwise go to home
+    const redirectTo = req.session.originalUrl || "/"
+    delete req.session.originalUrl
+
+    res.redirect(redirectTo)
   } else {
     // Captcha failed
     req.session.captchaError = "Incorrect captcha. Please try again."
-    res.redirect("/captcha")
+    res.redirect("/verify")
   }
 })
 
-// Apply captcha middleware to protect routes
-app.use(/^\/(?!captcha|verify-captcha|favicon.ico|robots.txt).*$/, captchaMiddleware)
+// Store the original URL before redirecting to captcha
+app.use((req, res, next) => {
+  if (!req.session.captchaPassed && req.path !== "/verify" && req.path !== "/process-verify") {
+    req.session.originalUrl = req.originalUrl
+  }
+  next()
+})
 
-// Main page route (protected by captcha)
+// Apply captcha middleware to protect all routes except verification routes
+app.use(/^\/(?!verify|process-verify|favicon.ico|robots.txt).*$/, captchaMiddleware)
+
+// Serve static files from the 'public' directory AFTER captcha verification
+app.use(express.static(path.join(__dirname, "public")))
+
+// Default route handler for the root URL
 app.get("/", (req, res) => {
+  // Check if index.html exists in the public directory
+  const indexPath = path.join(__dirname, "public", "index.html")
+
+  if (fs.existsSync(indexPath)) {
+    // If index.html exists, serve it
+    res.sendFile(indexPath)
+  } else {
+    // Otherwise, show a default page
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Abrotech</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            padding: 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+          }
+          h1 {
+            color: #333;
+          }
+        </style>
+      </head>
+      <body>
+        <h1>Welcome to Abrotech!</h1>
+        <p>You have successfully passed the captcha verification.</p>
+        <p>To display your website content, place your HTML files in the "public" directory.</p>
+      </body>
+      </html>
+    `)
+  }
+})
+
+// Test route to check verification status
+app.get("/verification-status", (req, res) => {
+  const isVerified = req.session.captchaPassed && req.session.captchaPassedAt
+  const verifiedTime = req.session.captchaPassedAt
+    ? new Date(req.session.captchaPassedAt).toLocaleString()
+    : "Not verified"
+  const timeRemaining = isVerified
+    ? Math.floor((req.session.captchaPassedAt + 60 * 60 * 1000 - Date.now()) / 1000 / 60) + " minutes"
+    : "Not applicable"
+
   res.send(`
     <!DOCTYPE html>
     <html lang="en">
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Abrotech</title>
+      <title>Verification Status</title>
       <style>
         body {
           font-family: Arial, sans-serif;
@@ -339,15 +404,40 @@ app.get("/", (req, res) => {
           max-width: 800px;
           margin: 0 auto;
         }
-        h1 {
-          color: #333;
+        .status {
+          padding: 1rem;
+          border-radius: 4px;
+          margin-bottom: 1rem;
+        }
+        .verified {
+          background-color: #d4edda;
+          color: #155724;
+        }
+        .not-verified {
+          background-color: #f8d7da;
+          color: #721c24;
+        }
+        pre {
+          background: #f5f5f5;
+          padding: 1rem;
+          border-radius: 4px;
+          overflow-x: auto;
         }
       </style>
     </head>
     <body>
-      <h1>Welcome to Abrotech!</h1>
-      <p>You have successfully passed the captcha verification.</p>
-      <!-- Your main website content goes here -->
+      <h1>Verification Status</h1>
+      <div class="status ${isVerified ? "verified" : "not-verified"}">
+        <p><strong>Status:</strong> ${isVerified ? "Verified" : "Not Verified"}</p>
+        <p><strong>Verified at:</strong> ${verifiedTime}</p>
+        <p><strong>Time remaining:</strong> ${timeRemaining}</p>
+      </div>
+      <p>This is a test page to check your verification status. If you're verified, trying to access /verify should redirect you to the homepage.</p>
+      <p><a href="/verify">Try accessing /verify</a></p>
+      <p><a href="/">Go to homepage</a></p>
+      
+      <h2>Session Data (Debug):</h2>
+      <pre>${JSON.stringify(req.session, null, 2)}</pre>
     </body>
     </html>
   `)
@@ -373,6 +463,9 @@ process.on("SIGINT", () => {
 // Start the server
 const PORT = process.env.PORT || 3000
 app.listen(PORT, () => {
-  console.log(`Enhanced captcha server running on port ${PORT}`)
+  console.log(`Server running on port ${PORT}`)
+  console.log(`Captcha verification is active at /verify`)
+  console.log(`Static files will be served from the 'public' directory after verification`)
+  console.log(`Verification status check available at /verification-status`)
 })
 
